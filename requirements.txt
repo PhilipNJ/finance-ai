@@ -1,0 +1,6 @@
+dash==2.17.1
+pandas==2.2.2
+plotly==5.24.1
+pdfplumber==0.11.4
+pytesseract==0.3.13
+Pillow==10.4.0

@@ -1,0 +1,18 @@
+/* Minimal, calm styling */
+body { background: #fbfdff; color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+.card { background: #ffffff; border: 1px solid #e5effa; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+.card .value { font-size: 20px; font-weight: 600; color: #0f172a; }
+.card .label { font-size: 12px; color: #64748b; }
+
+.upload { border: 2px dashed #bfdbfe; border-radius: 12px; padding: 30px; text-align: center; background: #f8fbff; color: #1d4ed8; }
+
+.dash-table-container .dash-spreadsheet-container { border: 1px solid #e5effa; border-radius: 10px; }
+
+.tabs { border-bottom: 1px solid #e5effa; }
+
+/* Light blue accents */
+a, .link { color: #2563eb; }
+
+/* Make graphs breathing */
+.js-plotly-plot .plotly .bg { fill: #ffffff; }
