@@ -1,3 +1,8 @@
+"""Local Personal Finance Dashboard.
+
+An offline Dash application for managing personal finances by uploading and parsing
+bank statements (CSV/PDF), categorizing transactions, and visualizing spending patterns.
+"""
 import base64
 import datetime as dt
 import hashlib
@@ -5,9 +10,6 @@ import io
 import os
 import re
 import sqlite3
-import base64
-import os
-import re
 from pathlib import Path
 from typing import List
 
@@ -247,4 +249,3 @@ def on_table_edit(ts, data, data_prev):
 
 if __name__ == '__main__':
     app.run_server(debug=True)
-    df = read_transactions_df()

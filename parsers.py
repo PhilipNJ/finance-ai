@@ -1,3 +1,8 @@
+"""Parsers for CSV and PDF financial statements.
+
+Provides functions to parse transaction data from CSV and PDF files,
+with optional OCR support for scanned documents.
+"""
 import io
 import re
 from typing import List, Tuple
@@ -29,6 +34,14 @@ DEFAULT_RULES = [
 
 
 def parse_csv(content: bytes) -> pd.DataFrame:
+    """Parse CSV content into a standardized DataFrame.
+    
+    Args:
+        content: Raw bytes of the CSV file.
+        
+    Returns:
+        pd.DataFrame: DataFrame with columns 'date', 'amount', 'description'.
+    """
     bio = io.BytesIO(content)
     try:
         df = pd.read_csv(bio)
@@ -53,6 +66,14 @@ def parse_csv(content: bytes) -> pd.DataFrame:
 
 
 def extract_text_from_pdf(content: bytes) -> str:
+    """Extract text from PDF using pdfplumber, with OCR fallback.
+    
+    Args:
+        content: Raw bytes of the PDF file.
+        
+    Returns:
+        str: Extracted text from all pages.
+    """
     if pdfplumber is None:
         return ""
     text_chunks = []
@@ -71,6 +92,14 @@ def extract_text_from_pdf(content: bytes) -> str:
 
 
 def parse_pdf_to_rows(content: bytes) -> pd.DataFrame:
+    """Parse PDF content into transaction rows.
+    
+    Args:
+        content: Raw bytes of the PDF file.
+        
+    Returns:
+        pd.DataFrame: DataFrame with columns 'date', 'amount', 'description'.
+    """
     raw = extract_text_from_pdf(content)
     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
     rows = []
@@ -99,6 +128,18 @@ def parse_pdf_to_rows(content: bytes) -> pd.DataFrame:
 
 
 def categorize(description: str, amount: float, mem: List[Tuple[str, str]]) -> str:
+    """Categorize a transaction based on description and amount.
+    
+    Uses memory labels first, then default rules, then amount-based heuristics.
+    
+    Args:
+        description: Transaction description.
+        amount: Transaction amount (positive for income, negative for expense).
+        mem: List of (keyword, category) tuples from memory.
+        
+    Returns:
+        str: Category name.
+    """
     desc = (description or '').lower()
     for kw, cat in mem:
         if kw and kw in desc:

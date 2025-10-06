@@ -1,3 +1,8 @@
+"""Database operations for the finance dashboard.
+
+Provides functions for initializing the SQLite database, inserting documents and
+transactions, and managing categorization memory labels.
+"""
 import sqlite3
 import datetime as dt
 from typing import List, Tuple
@@ -42,10 +47,19 @@ SCHEMA = {
 
 
 def get_conn():
+    """Get a connection to the SQLite database.
+    
+    Returns:
+        sqlite3.Connection: Database connection object.
+    """
     return sqlite3.connect(DB_PATH)
 
 
 def init_db():
+    """Initialize the database schema.
+    
+    Creates tables for documents, transactions, and memory labels if they don't exist.
+    """
     con = get_conn()
     try:
         cur = con.cursor()
@@ -57,6 +71,14 @@ def init_db():
 
 
 def insert_document(filename: str) -> int:
+    """Insert a new document record.
+    
+    Args:
+        filename: Name of the uploaded document file.
+        
+    Returns:
+        int: The ID of the newly inserted document.
+    """
     con = get_conn()
     try:
         cur = con.cursor()
@@ -71,6 +93,12 @@ def insert_document(filename: str) -> int:
 
 
 def insert_transactions(document_id: int, rows: List[Tuple[str, float, str, str]]):
+    """Insert multiple transactions for a document.
+    
+    Args:
+        document_id: ID of the document these transactions belong to.
+        rows: List of tuples containing (date, amount, description, category).
+    """
     con = get_conn()
     try:
         cur = con.cursor()
@@ -84,6 +112,11 @@ def insert_transactions(document_id: int, rows: List[Tuple[str, float, str, str]
 
 
 def read_transactions_df():
+    """Read all transactions as a pandas DataFrame.
+    
+    Returns:
+        pd.DataFrame: DataFrame containing all transactions with associated document info.
+    """
     import pandas as pd
     con = get_conn()
     try:
@@ -98,6 +131,12 @@ def read_transactions_df():
 
 
 def upsert_mem_label(keyword: str, category: str):
+    """Insert a keyword-category mapping for categorization memory.
+    
+    Args:
+        keyword: Keyword to associate with the category.
+        category: Category name to assign.
+    """
     keyword = keyword.strip().lower()
     if not keyword:
         return
@@ -113,6 +152,11 @@ def upsert_mem_label(keyword: str, category: str):
 
 
 def get_mem_labels() -> List[Tuple[str, str]]:
+    """Get all keyword-category mappings from memory.
+    
+    Returns:
+        List[Tuple[str, str]]: List of (keyword, category) tuples.
+    """
     con = get_conn()
     try:
         cur = con.cursor()
