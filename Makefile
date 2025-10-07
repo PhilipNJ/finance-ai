@@ -9,7 +9,7 @@ run:
 	poetry run finance-ai
 
 preflight:
-	poetry run $(PY) preflight_check.py
+	poetry run $(PY) scripts/preflight_check.py
 
 test:
-	poetry run $(PY) test_installation.py
+	poetry run $(PY) scripts/test_installation.py

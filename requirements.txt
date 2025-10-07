@@ -4,6 +4,7 @@ plotly==5.24.1
 pdfplumber==0.11.4
 pytesseract==0.3.13
 Pillow==10.4.0
+requests==2.32.3
 
 # Documentation
 mkdocs==1.5.3
