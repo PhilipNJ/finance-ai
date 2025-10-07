@@ -689,6 +689,8 @@ class DatabaseAgent:
                 # Transactions table should already exist, but check for new columns
                 if table_exists:
                     self._add_missing_columns(cur, data_type, sample_record)
+                    # Ensure metadata columns used by writer always exist
+                    self._ensure_metadata_columns(cur, data_type)
                 # If not exists, it will be created by existing init_db()
             else:
                 # Create new table for new data type
@@ -696,6 +698,8 @@ class DatabaseAgent:
                     self._create_dynamic_table(cur, data_type, sample_record)
                 else:
                     self._add_missing_columns(cur, data_type, sample_record)
+                # Ensure metadata columns for dynamic tables as well
+                self._ensure_metadata_columns(cur, data_type)
             
             con.commit()
         finally:
@@ -756,6 +760,21 @@ class DatabaseAgent:
                     print(f"Added column {key} to {table_name}")
                 except Exception as e:
                     print(f"Failed to add column {key}: {e}")
+
+    def _ensure_metadata_columns(self, cursor, table_name: str):
+        """Ensure common metadata columns exist on a table.
+
+        Adds 'source_file' (TEXT) and 'created_at' (TEXT) if missing.
+        """
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            existing_cols = {row[1] for row in cursor.fetchall()}
+            for col_name in ("source_file", "created_at"):
+                if col_name not in existing_cols:
+                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} TEXT")
+                    print(f"Added column {col_name} to {table_name}")
+        except Exception as e:
+            print(f"Failed to ensure metadata columns on {table_name}: {e}")
     
     def _infer_sql_type(self, value: Any) -> str:
         """Infer SQL column type from Python value.
