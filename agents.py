@@ -97,7 +97,10 @@ class AgentWorkflow:
 
 
 class ExtractionAgent:
-    """Agent 1: Extracts all information from uploaded files."""
+    """Agent 1: Extracts all information from uploaded files.
+    
+    This agent requires LLM support for intelligent extraction.
+    """
     
     def __init__(self, temp_dir: Path):
         """Initialize the extraction agent.
@@ -107,6 +110,10 @@ class ExtractionAgent:
         """
         self.temp_dir = temp_dir
         self.use_llm = is_llm_available()
+        
+        if not self.use_llm:
+            print("WARNING: LLM not available. Extraction quality will be reduced.")
+            print("Install llama-cpp-python for full AI capabilities.")
     
     def extract(
         self,
@@ -138,8 +145,8 @@ class ExtractionAgent:
         else:
             raw_data = self._extract_from_text(content)
         
-        # Use LLM to enhance extraction if available
-        if self.use_llm and raw_data.get('text'):
+        # Always attempt LLM enhancement (AI-first approach)
+        if raw_data.get('text') or raw_data.get('rows'):
             enhanced_data = self._llm_enhance_extraction(raw_data)
         else:
             enhanced_data = raw_data
@@ -275,7 +282,10 @@ Return your analysis as JSON with these fields: document_type, date_range, accou
 
 
 class OrganizerAgent:
-    """Agent 2: Organizes extracted data into structured JSONs."""
+    """Agent 2: Organizes extracted data into structured JSONs.
+    
+    This agent requires LLM support for intelligent data organization.
+    """
     
     def __init__(self, temp_dir: Path):
         """Initialize the organizer agent.
@@ -285,6 +295,10 @@ class OrganizerAgent:
         """
         self.temp_dir = temp_dir
         self.use_llm = is_llm_available()
+        
+        if not self.use_llm:
+            print("WARNING: LLM not available. Organization will use pattern matching only.")
+            print("Install llama-cpp-python for intelligent data organization.")
     
     def organize(self, output_1_path: Path, session_id: str) -> List[Path]:
         """Organize extracted data into structured JSONs.
@@ -396,16 +410,25 @@ class OrganizerAgent:
         
         transactions = []
         
-        if raw_data.get('type') == 'csv' and raw_data.get('rows'):
-            # CSV rows are already structured
-            for row in raw_data['rows']:
-                trans = self._normalize_transaction(row)
-                if trans:
-                    transactions.append(trans)
+        # AI-first approach: Try LLM extraction for all types
+        if self.use_llm:
+            # Use LLM for intelligent extraction even from CSV
+            transactions = self._llm_extract_transactions(output_1)
+            
+            # If LLM extraction failed or returned nothing, fall back to CSV parsing
+            if not transactions and raw_data.get('type') == 'csv' and raw_data.get('rows'):
+                print("LLM extraction returned no results, using structured CSV data...")
+                for row in raw_data['rows']:
+                    trans = self._normalize_transaction(row)
+                    if trans:
+                        transactions.append(trans)
         else:
-            # Extract from text using LLM or patterns
-            if self.use_llm:
-                transactions = self._llm_extract_transactions(output_1)
+            # Fallback to structured parsing only if LLM unavailable
+            if raw_data.get('type') == 'csv' and raw_data.get('rows'):
+                for row in raw_data['rows']:
+                    trans = self._normalize_transaction(row)
+                    if trans:
+                        transactions.append(trans)
             else:
                 transactions = self._pattern_extract_transactions(raw_data.get('text', ''))
         

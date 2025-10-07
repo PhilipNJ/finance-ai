@@ -37,11 +37,43 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 # Initialize DB
 init_db()
 
-# Initialize Agent Workflow
-USE_AGENT_WORKFLOW = os.environ.get('USE_AGENT_WORKFLOW', 'true').lower() == 'true'
-agent_workflow = AgentWorkflow(TEMP_DIR) if USE_AGENT_WORKFLOW else None
+# AI-First Startup Check
+print("\n" + "="*70)
+print("🤖 Finance AI Dashboard - Starting Up")
+print("="*70)
 
-app: Dash = dash.Dash(__name__, suppress_callback_exceptions=True, title="Local Finance Dashboard")
+if not is_llm_available():
+    print("\n❌ CRITICAL ERROR: LLM dependencies not available!")
+    print("\nThis app requires llama-cpp-python to function.")
+    print("\nInstall with:")
+    print("  macOS (Apple Silicon): CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python")
+    print("  Other systems: pip install llama-cpp-python")
+    print("\nOr run: ./setup.sh")
+    print("\n" + "="*70 + "\n")
+    raise SystemExit("LLM dependencies required. Please install llama-cpp-python.")
+
+print("✅ LLM dependencies available")
+
+# Initialize Agent Workflow (AI-first approach)
+USE_AGENT_WORKFLOW = True  # AI workflow is always enabled
+print("🔧 Initializing AI agent workflow...")
+
+try:
+    agent_workflow = AgentWorkflow(TEMP_DIR)
+    print("✅ AI agents ready!")
+except Exception as e:
+    print(f"\n❌ Failed to initialize AI agents: {e}")
+    print("\nPlease check:")
+    print("  1. Model file exists: mistral-7b-instruct-v0.1.Q5_0.gguf")
+    print("  2. llama-cpp-python is properly installed")
+    print("\n" + "="*70 + "\n")
+    raise
+
+print("="*70)
+print("✅ Finance AI Dashboard ready!")
+print("="*70 + "\n")
+
+app: Dash = dash.Dash(__name__, suppress_callback_exceptions=True, title="Finance AI Dashboard 🤖")
 server = app.server
 
 categories = [
@@ -49,14 +81,32 @@ categories = [
 ]
 
 app.layout = html.Div([
+    # Header with AI branding
+    html.Div(className='card', style={'marginBottom': '20px', 'textAlign': 'center'}, children=[
+        html.H1('🤖 Finance AI Dashboard', style={'margin': '10px 0'}),
+        html.P('Powered by Multi-Agent AI • 100% Offline • Privacy-First', 
+               style={'color': '#666', 'fontSize': '14px', 'margin': '5px 0'}),
+        html.Div([
+            html.Span('🔍 Agent 1: Extractor', style={'margin': '0 10px', 'fontSize': '12px'}),
+            html.Span('📊 Agent 2: Organizer', style={'margin': '0 10px', 'fontSize': '12px'}),
+            html.Span('💾 Agent 3: DB Expert', style={'margin': '0 10px', 'fontSize': '12px'}),
+        ], style={'color': '#888', 'fontSize': '12px'})
+    ]),
+    
     dcc.Tabs(className='tabs', value='tab-upload', children=[
-        dcc.Tab(label='Upload', value='tab-upload', children=[
+        dcc.Tab(label='🤖 AI Upload', value='tab-upload', children=[
             html.Div(className='card', children=[
-                html.H3('Upload Statements (CSV or PDF)'),
+                html.H3('Upload Financial Documents'),
+                html.P('AI agents will automatically extract, organize, and store your data', 
+                       style={'color': '#666', 'fontSize': '14px', 'marginBottom': '15px'}),
                 dcc.Upload(
                     id='upload-data',
                     className='upload',
-                    children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
+                    children=html.Div([
+                        html.Div('🤖 Drag and Drop or ', style={'display': 'inline'}),
+                        html.A('Select Files', style={'display': 'inline'}),
+                        html.Div('Supports: CSV, PDF, Text', style={'fontSize': '12px', 'color': '#888', 'marginTop': '10px'})
+                    ]),
                     multiple=True
                 ),
                 html.Div(id='upload-status', style={'marginTop':'10px', 'color':'#2563eb'})
@@ -103,8 +153,16 @@ def handle_upload(list_of_contents, list_of_names):
         return ''
     messages = []
     
-    # Check if LLM is available for agent workflow
+    # Check if LLM is available (required for this app)
     llm_available = is_llm_available()
+    
+    if not llm_available:
+        return html.Div([
+            html.P("⚠️ LLM dependencies not available!", style={'color': 'orange', 'fontWeight': 'bold'}),
+            html.P("This app requires llama-cpp-python to be installed."),
+            html.P("Install with: CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python"),
+            html.P("Or run: ./setup.sh")
+        ], style={'padding': '20px', 'backgroundColor': '#fff3cd', 'borderRadius': '8px'})
     
     for content_str, name in zip(list_of_contents, list_of_names):
         try:
@@ -118,69 +176,27 @@ def handle_upload(list_of_contents, list_of_names):
             
             ext = os.path.splitext(name)[1].lower()
             
-            # Use agent workflow if enabled and available
-            if USE_AGENT_WORKFLOW and agent_workflow:
-                try:
-                    success, message, num_records = agent_workflow.process_file(
-                        safe_name, content, ext
-                    )
-                    
-                    if success:
-                        llm_status = " (with LLM)" if llm_available else " (pattern-based)"
-                        messages.append(f"✓ {name}: {num_records} records processed{llm_status}")
-                    else:
-                        messages.append(f"⚠ {name}: {message}")
-                        
-                except Exception as e:
-                    messages.append(f"⚠ Agent workflow failed for {name}, using fallback: {str(e)}")
-                    # Fallback to original parsing
-                    num_records = _fallback_parse(content, name, ext, safe_name)
-                    messages.append(f"✓ {name}: {num_records} records (fallback method)")
+            # Always use AI agent workflow
+            success, message, num_records = agent_workflow.process_file(
+                safe_name, content, ext
+            )
+            
+            if success:
+                ai_indicator = " 🤖" if llm_available else " 🔍"
+                messages.append(f"✓ {name}: {num_records} records processed{ai_indicator}")
             else:
-                # Original parsing method
-                num_records = _fallback_parse(content, name, ext, safe_name)
-                messages.append(f"✓ {name}: {num_records} rows (classic method)")
+                messages.append(f"✗ {name}: {message}")
                 
         except Exception as e:
-            messages.append(f"✗ Error processing {name}: {e}")
+            messages.append(f"✗ Error processing {name}: {str(e)}")
+            import traceback
+            print(f"Full error for {name}:")
+            traceback.print_exc()
     
     return html.Ul([html.Li(m) for m in messages])
 
 
-def _fallback_parse(content: bytes, name: str, ext: str, safe_name: str) -> int:
-    """Fallback to original parsing method.
-    
-    Args:
-        content: Raw file content.
-        name: Original filename.
-        ext: File extension.
-        safe_name: Sanitized filename.
-        
-    Returns:
-        int: Number of rows processed.
-    """
-    doc_id = insert_document(safe_name)
-    
-    # parse
-    if ext == '.csv':
-        df = parse_csv(content)
-    elif ext == '.pdf':
-        df = parse_pdf_to_rows(content)
-    else:
-        # try csv as default
-        try:
-            df = parse_csv(content)
-        except Exception:
-            df = pd.DataFrame(columns=['date','amount','description'])
-    
-    # categorize
-    mem = get_mem_labels()
-    if not df.empty:
-        df['category'] = [categorize(r['description'], r['amount'], mem) for _, r in df.iterrows()]
-        rows = [(r['date'] or '', float(r['amount'] or 0), r['description'] or '', r['category'] or 'Uncategorized') for _, r in df.iterrows()]
-        insert_transactions(doc_id, rows)
-        return len(df)
-    return 0
+
 
 
 # -----------------------------

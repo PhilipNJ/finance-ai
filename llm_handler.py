@@ -17,7 +17,10 @@ except ImportError:
 
 
 class LLMHandler:
-    """Handler for local LLM inference using llama.cpp."""
+    """Handler for local LLM inference using llama.cpp.
+    
+    This is the core AI engine for the Finance AI Dashboard.
+    """
     
     def __init__(self, model_path: Optional[Path] = None, n_ctx: int = 4096, n_threads: int = 4):
         """Initialize the LLM handler.
@@ -29,8 +32,21 @@ class LLMHandler:
         """
         if not LLAMA_CPP_AVAILABLE:
             raise ImportError(
-                "llama-cpp-python is not installed. "
-                "Install it with: pip install llama-cpp-python"
+                "\n" + "="*60 + "\n"
+                "❌ llama-cpp-python is NOT installed!\n"
+                "\n"
+                "This Finance AI Dashboard requires LLM capabilities.\n"
+                "\n"
+                "Install with:\n"
+                "  macOS (Apple Silicon):\n"
+                "    CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python\n"
+                "\n"
+                "  Other systems:\n"
+                "    pip install llama-cpp-python\n"
+                "\n"
+                "Or run the setup script:\n"
+                "  ./setup.sh\n"
+                + "="*60
             )
         
         if model_path is None:
@@ -38,14 +54,29 @@ class LLMHandler:
         
         if not model_path.exists():
             raise FileNotFoundError(
-                f"Model file not found at {model_path}. "
-                "Please ensure the model file is present."
+                "\n" + "="*60 + "\n"
+                f"❌ Model file not found: {model_path.name}\n"
+                "\n"
+                "Download the Mistral-7B model (~4.2GB):\n"
+                "\n"
+                "  wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q5_0.gguf\n"
+                "\n"
+                "Or:\n"
+                "  curl -L -o mistral-7b-instruct-v0.1.Q5_0.gguf \\\n"
+                "    https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q5_0.gguf\n"
+                "\n"
+                "Expected location: " + str(model_path) + "\n"
+                + "="*60
             )
         
         self.model_path = model_path
         self.n_ctx = n_ctx
         self.n_threads = n_threads
         self.llm: Optional[Llama] = None
+        
+        # Auto-load model on initialization (AI-first approach)
+        print(f"🤖 Initializing AI engine with {model_path.name}...")
+        self.load()
         
     def load(self):
         """Load the model into memory."""
