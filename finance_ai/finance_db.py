@@ -30,6 +30,7 @@ SCHEMA = {
             amount REAL,
             description TEXT,
             category TEXT,
+            subcategory TEXT,
             FOREIGN KEY(document_id) REFERENCES documents(id)
         )
         """
@@ -39,7 +40,17 @@ SCHEMA = {
         CREATE TABLE IF NOT EXISTS mem_labels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             keyword TEXT NOT NULL,
-            category TEXT NOT NULL
+            category TEXT NOT NULL,
+            subcategory TEXT
+        )
+        """
+    ),
+    'uncertain_transactions': (
+        """
+        CREATE TABLE IF NOT EXISTS uncertain_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            source_file TEXT
         )
         """
     ),
@@ -66,6 +77,11 @@ def init_db():
         cur = con.cursor()
         for ddl in SCHEMA.values():
             cur.execute(ddl)
+        # Best-effort migrations for existing databases
+        _ensure_column_exists(cur, 'transactions', 'subcategory', 'TEXT')
+        _ensure_column_exists(cur, 'mem_labels', 'subcategory', 'TEXT')
+        # Ensure unique index for uncertain items
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_uncertain_desc_src ON uncertain_transactions(description, source_file)")
         con.commit()
     finally:
         con.close()
@@ -93,7 +109,7 @@ def insert_document(filename: str) -> int:
         con.close()
 
 
-def insert_transactions(document_id: int, rows: List[Tuple[str, float, str, str]]):
+def insert_transactions(document_id: int, rows: List[Tuple[str, float, str, str, str | None]]):
     """Insert multiple transactions for a document.
     
     Args:
@@ -104,8 +120,8 @@ def insert_transactions(document_id: int, rows: List[Tuple[str, float, str, str]
     try:
         cur = con.cursor()
         cur.executemany(
-            "INSERT INTO transactions (document_id, date, amount, description, category) VALUES (?, ?, ?, ?, ?)",
-            [(document_id, d, a, desc, cat) for d, a, desc, cat in rows],
+            "INSERT INTO transactions (document_id, date, amount, description, category, subcategory) VALUES (?, ?, ?, ?, ?, ?)",
+            [(document_id, d, a, desc, cat, sub) for d, a, desc, cat, sub in rows],
         )
         con.commit()
     finally:
@@ -122,7 +138,7 @@ def read_transactions_df():
     con = get_conn()
     try:
         df = pd.read_sql_query(
-            "SELECT t.id, t.document_id, t.date, t.amount, t.description, t.category, d.filename "
+            "SELECT t.id, t.document_id, t.date, t.amount, t.description, t.category, t.subcategory, d.filename "
             "FROM transactions t LEFT JOIN documents d ON t.document_id = d.id ORDER BY t.date",
             con,
         )
@@ -131,7 +147,7 @@ def read_transactions_df():
         con.close()
 
 
-def upsert_mem_label(keyword: str, category: str):
+def upsert_mem_label(keyword: str, category: str, subcategory: str | None = None):
     """Insert a keyword-category mapping for categorization memory.
     
     Args:
@@ -144,9 +160,10 @@ def upsert_mem_label(keyword: str, category: str):
     con = get_conn()
     try:
         cur = con.cursor()
-        cur.execute(
-            "INSERT INTO mem_labels (keyword, category) VALUES (?, ?)", (keyword, category)
-        )
+        if subcategory is None:
+            cur.execute("INSERT INTO mem_labels (keyword, category) VALUES (?, ?)", (keyword, category))
+        else:
+            cur.execute("INSERT INTO mem_labels (keyword, category, subcategory) VALUES (?, ?, ?)", (keyword, category, subcategory))
         con.commit()
     finally:
         con.close()
@@ -165,3 +182,51 @@ def get_mem_labels() -> List[Tuple[str, str]]:
         return cur.fetchall()
     finally:
         con.close()
+
+
+def queue_uncertain_transactions(items: List[Tuple[str, str]]):
+    """Insert unique uncertain transactions for manual review.
+
+    Each item is a tuple of (description, source_file).
+    """
+    if not items:
+        return
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_uncertain_desc_src ON uncertain_transactions(description, source_file)")
+        for desc, src in items:
+            cur.execute("INSERT OR IGNORE INTO uncertain_transactions(description, source_file) VALUES (?, ?)", (desc.strip(), (src or '').strip()))
+        con.commit()
+    finally:
+        con.close()
+
+
+def fetch_uncertain_transactions() -> List[Tuple[int, str, str]]:
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT id, description, COALESCE(source_file,'') FROM uncertain_transactions ORDER BY id DESC")
+        return cur.fetchall()
+    finally:
+        con.close()
+
+
+def delete_uncertain_transaction(row_id: int):
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        cur.execute("DELETE FROM uncertain_transactions WHERE id=?", (row_id,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def _ensure_column_exists(cur, table: str, column: str, coltype: str):
+    try:
+        cur.execute(f"PRAGMA table_info({table})")
+        cols = {r[1] for r in cur.fetchall()}
+        if column not in cols:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+    except Exception:
+        pass

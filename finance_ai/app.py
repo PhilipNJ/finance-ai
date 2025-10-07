@@ -14,7 +14,14 @@ from dash import Dash, dcc, html, Input, Output, State, dash_table
 import pandas as pd
 import plotly.express as px
 
-from .finance_db import init_db, read_transactions_df, upsert_mem_label, get_conn
+from .finance_db import (
+    init_db,
+    read_transactions_df,
+    upsert_mem_label,
+    get_conn,
+    fetch_uncertain_transactions,
+    delete_uncertain_transaction,
+)
 from .agents import AgentWorkflow
 from .llm_handler import is_llm_available
 from .file_scanner import FileScanner
@@ -146,6 +153,19 @@ app.layout = html.Div([
                 html.Div(id='transactions-table-container')
             ])
         ]),
+        dcc.Tab(label='Uncertain', value='tab-uncertain', children=[
+            html.Div(className='card', children=[
+                html.H3('Uncertain Transactions — Manual Categorization'),
+                html.P('Assign a category (and optional subcategory). These mappings will be remembered and applied automatically in the future.'),
+                html.Div(id='uncertain-table-container'),
+                html.Div(style={'height':'8px'}),
+                html.Div([
+                    html.Button('Save Categorization', id='save-uncertain', n_clicks=0, className='button'),
+                    html.Span(' ', style={'display':'inline-block','width':'12px'}),
+                    html.Button('Re-apply Memory to DB', id='reapply-memory', n_clicks=0, className='button')
+                ])
+            ])
+        ]),
         dcc.Tab(label='Dashboard', value='tab-dashboard', children=[
             html.Div(className='card', children=[
                 html.H3('Overview'),
@@ -242,6 +262,119 @@ def refresh_table(_):
         style_table={'overflowX':'auto'},
         dropdown=dropdowns,
     )
+
+
+# -----------------------------
+# Uncertain transactions tab
+# -----------------------------
+def _load_uncertain_df():
+    rows = fetch_uncertain_transactions()
+    import pandas as pd
+    df = pd.DataFrame(rows, columns=['id','description','source_file'])
+    if df.empty:
+        return df
+    df['category'] = ''
+    df['subcategory'] = ''
+    return df
+
+
+@app.callback(
+    Output('uncertain-table-container', 'children'),
+    Input('refresh-interval', 'n_intervals')
+)
+def refresh_uncertain_table(_):
+    df = _load_uncertain_df()
+    if df.empty:
+        return html.Div('No uncertain transactions. Great job! ✅')
+    columns=[
+        {'name':'ID','id':'id','editable':False},
+        {'name':'Description','id':'description','editable':False},
+        {'name':'Source','id':'source_file','editable':False},
+        {'name':'Category','id':'category','presentation':'dropdown'},
+        {'name':'Subcategory','id':'subcategory'},
+    ]
+    dropdowns={'category': {'options':[{'label':c,'value':c} for c in categories]}}
+    return dash_table.DataTable(
+        id='uncertain-table',
+        columns=columns,
+        data=df.to_dict('records'),
+        editable=True,
+        row_deletable=False,
+        filter_action='native',
+        sort_action='native',
+        page_size=10,
+        style_table={'overflowX':'auto'},
+        dropdown=dropdowns,
+    )
+
+
+def _extract_keywords(desc: str) -> set[str]:
+    # simple keywords of length >= 4
+    toks = set(re.findall(r"[A-Za-z]{4,}", (desc or '').lower()))
+    return toks
+
+
+@app.callback(
+    Output('uncertain-table', 'data'),
+    Input('save-uncertain', 'n_clicks'),
+    State('uncertain-table', 'data'),
+    prevent_initial_call=True
+)
+def on_save_uncertain(n_clicks, data):
+    if not n_clicks or not data:
+        raise dash.exceptions.PreventUpdate
+    # Persist mappings and update DB; remove processed uncertain rows
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        processed_ids = []
+        for row in data:
+            cat = (row.get('category') or '').strip()
+            sub = (row.get('subcategory') or '').strip() or None
+            desc = row.get('description') or ''
+            rid = row.get('id')
+            if not cat:
+                continue
+            # Save memory: store full phrase and tokens
+            upsert_mem_label(desc.lower(), cat, sub)
+            for tok in _extract_keywords(desc):
+                upsert_mem_label(tok, cat, sub)
+            # Update existing Uncategorized transactions heuristically
+            like = f"%{desc[:20]}%" if len(desc) >= 6 else f"%{desc}%"
+            try:
+                cur.execute(
+                    "UPDATE transactions SET category=?, subcategory=? WHERE (lower(description) LIKE lower(?) OR lower(description) LIKE lower(?)) AND (category IS NULL OR category='' OR category='Uncategorized')",
+                    (cat, sub, f"%{desc.lower()}%", like)
+                )
+            except Exception:
+                pass
+            # Remove from queue
+            if isinstance(rid, int):
+                try:
+                    delete_uncertain_transaction(rid)
+                    processed_ids.append(rid)
+                except Exception:
+                    pass
+        con.commit()
+    finally:
+        con.close()
+
+    # Reload remaining
+    df = _load_uncertain_df()
+    return df.to_dict('records') if not df.empty else []
+
+
+@app.callback(
+    Output('transactions-table', 'data', allow_duplicate=True),
+    Input('reapply-memory', 'n_clicks'),
+    prevent_initial_call=True
+)
+def on_reapply_memory(_):
+    # Simply reload from DB; categorization is applied on next ingestion, but user can refresh view
+    df = read_transactions_df()
+    if df.empty:
+        raise dash.exceptions.PreventUpdate
+    return df[['id','date','amount','description','category']].to_dict('records')
 
 
 @app.callback(

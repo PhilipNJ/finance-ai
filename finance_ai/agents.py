@@ -15,6 +15,8 @@ import pandas as pd
 from .llm_handler import get_llm_handler, is_llm_available
 from .parsers import extract_text_from_pdf, parse_csv
 from .finance_db import get_conn
+from .categorization_agent import CategorizationAgent
+from .finance_db import queue_uncertain_transactions
 
 
 class AgentWorkflow:
@@ -32,6 +34,7 @@ class AgentWorkflow:
         self.extraction_agent = ExtractionAgent(temp_dir)
         self.organizer_agent = OrganizerAgent(temp_dir)
         self.database_agent = DatabaseAgent(temp_dir)
+        self.categorization_agent = CategorizationAgent()
     
     def process_file(
         self,
@@ -68,6 +71,14 @@ class AgentWorkflow:
             if not organized_jsons:
                 return False, "Agent 2 failed to organize data", 0
             
+            # Agent 2.5: Categorize transactions and collect uncertain items
+            print(f"[Agent 2.5] Categorizing transactions...")
+            organized_jsons, uncertain_items = self._categorize_organized(organized_jsons)
+
+            # Queue uncertain items for manual review
+            if uncertain_items:
+                queue_uncertain_transactions(uncertain_items)
+
             # Agent 3: Write to database
             print(f"[Agent 3] Writing to database...")
             num_records = self.database_agent.write_to_db(organized_jsons, filename)
@@ -94,6 +105,35 @@ class AgentWorkflow:
             print(f"Cleaned up temporary files for session {session_id}")
         except Exception as e:
             print(f"Warning: Failed to cleanup session {session_id}: {e}")
+
+    def _categorize_organized(self, organized_files: List[Path]) -> Tuple[List[Path], List[Tuple[str, str]]]:
+        """Load organized JSONs, categorize transactions, rewrite files, collect uncertain.
+
+        Returns updated list of paths and a list of uncertain (description, source_file).
+        """
+        updated_paths: List[Path] = []
+        all_uncertain: List[Tuple[str, str]] = []
+        for p in organized_files:
+            try:
+                with open(p) as f:
+                    data = json.load(f)
+                if data.get("data_type") != "transactions":
+                    updated_paths.append(p)
+                    continue
+                records = data.get("records", [])
+                # Ensure source_file on records for uncertain queue
+                for r in records:
+                    r.setdefault("source_file", data.get("metadata", {}).get("source_file"))
+                updated, uncertain = self.categorization_agent.categorize_transactions(records)
+                data["records"] = updated
+                with open(p, 'w') as f:
+                    json.dump(data, f, indent=2)
+                updated_paths.append(p)
+                all_uncertain.extend(uncertain)
+            except Exception as e:
+                print(f"Failed to categorize {p.name}: {e}")
+                updated_paths.append(p)
+        return updated_paths, all_uncertain
 
 
 class ExtractionAgent:
