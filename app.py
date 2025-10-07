@@ -1,11 +1,11 @@
 """Local Personal Finance Dashboard.
 
-An offline Dash application for managing personal finances by uploading and parsing
-bank statements (CSV/PDF), categorizing transactions, and visualizing spending patterns.
+An offline Dash application for managing personal finances by automatically processing
+bank statements (CSV/PDF) from a watched directory, categorizing transactions, and visualizing spending patterns.
 
-Now features an intelligent multi-agent workflow for enhanced data extraction and organization.
+Features an intelligent multi-agent workflow for enhanced data extraction and organization.
+Auto-processes new files on startup with persistent memory to avoid duplicates.
 """
-import base64
 import os
 from pathlib import Path
 import re
@@ -19,14 +19,16 @@ from finance_db import init_db, read_transactions_df, upsert_mem_label, get_conn
 from utils import unique_filename
 from agents import AgentWorkflow
 from llm_handler import is_llm_available
+from file_scanner import FileScanner
 
-# Project paths & ensure upload dir exists
+# Project paths & ensure directories exist
 ROOT = Path(__file__).parent
 DATA_DIR = ROOT / 'data'
-UPLOAD_DIR = DATA_DIR / 'uploads'
+WATCH_DIR = ROOT / 'test_files'  # Directory to watch for new files
 TEMP_DIR = DATA_DIR / 'temp'
+PROCESSED_FILE = DATA_DIR / 'processed_files.json'  # Track processed files
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+WATCH_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Initialize DB
@@ -64,6 +66,46 @@ except Exception as e:
     print("\n" + "="*70 + "\n")
     raise
 
+# Initialize File Scanner
+print("🔍 Initializing file scanner...")
+file_scanner = FileScanner(WATCH_DIR, PROCESSED_FILE)
+stats = file_scanner.get_stats()
+print(f"📁 Watching directory: {stats['watch_directory']}")
+print(f"📊 Previously processed files: {stats['total_processed']}")
+
+# Scan for new files on startup
+print("🔎 Scanning for new files...")
+new_files = file_scanner.scan_for_new_files()
+
+if new_files:
+    print(f"📄 Found {len(new_files)} new file(s) to process")
+    for file_path, file_hash in new_files:
+        print(f"\n🤖 Processing: {file_path.name}")
+        try:
+            # Read file content
+            with open(file_path, 'rb') as f:
+                content = f.read()
+            
+            ext = file_path.suffix.lower()
+            
+            # Process with AI agents
+            success, message, num_records = agent_workflow.process_file(
+                file_path.name, content, ext
+            )
+            
+            if success:
+                print(f"✅ {file_path.name}: {num_records} records processed 🤖")
+                file_scanner.mark_as_processed(file_hash)
+            else:
+                print(f"❌ {file_path.name}: {message}")
+        
+        except Exception as e:
+            print(f"❌ Error processing {file_path.name}: {e}")
+            import traceback
+            traceback.print_exc()
+else:
+    print("✓ No new files to process")
+
 print("="*70)
 print("✅ Finance AI Dashboard ready!")
 print("="*70 + "\n")
@@ -79,7 +121,7 @@ app.layout = html.Div([
     # Header with AI branding
     html.Div(className='card', style={'marginBottom': '20px', 'textAlign': 'center'}, children=[
         html.H1('🤖 Finance AI Dashboard', style={'margin': '10px 0'}),
-        html.P('Powered by Multi-Agent AI • 100% Offline • Privacy-First', 
+        html.P('Powered by Multi-Agent AI • 100% Offline • Privacy-First • Auto-Processing', 
                style={'color': '#666', 'fontSize': '14px', 'margin': '5px 0'}),
         html.Div([
             html.Span('🔍 Agent 1: Extractor', style={'margin': '0 10px', 'fontSize': '12px'}),
@@ -88,25 +130,16 @@ app.layout = html.Div([
         ], style={'color': '#888', 'fontSize': '12px'})
     ]),
     
-    dcc.Tabs(className='tabs', value='tab-upload', children=[
-        dcc.Tab(label='🤖 AI Upload', value='tab-upload', children=[
-            html.Div(className='card', children=[
-                html.H3('Upload Financial Documents'),
-                html.P('AI agents will automatically extract, organize, and store your data', 
-                       style={'color': '#666', 'fontSize': '14px', 'marginBottom': '15px'}),
-                dcc.Upload(
-                    id='upload-data',
-                    className='upload',
-                    children=html.Div([
-                        html.Div('🤖 Drag and Drop or ', style={'display': 'inline'}),
-                        html.A('Select Files', style={'display': 'inline'}),
-                        html.Div('Supports: CSV, PDF, Text', style={'fontSize': '12px', 'color': '#888', 'marginTop': '10px'})
-                    ]),
-                    multiple=True
-                ),
-                html.Div(id='upload-status', style={'marginTop':'10px', 'color':'#2563eb'})
-            ])
-        ]),
+    # Info card about auto-processing
+    html.Div(className='card', style={'marginBottom': '20px', 'backgroundColor': '#f0f9ff'}, children=[
+        html.H3('📁 Auto-Processing Active', style={'margin': '10px 0', 'color': '#0369a1'}),
+        html.P(f'Monitoring: {WATCH_DIR}', style={'fontSize': '14px', 'margin': '5px 0', 'fontFamily': 'monospace'}),
+        html.P('Drop new files into this directory and restart the app to process them automatically.', 
+               style={'fontSize': '14px', 'color': '#666', 'margin': '5px 0'}),
+        html.Div(id='scanner-stats', style={'marginTop': '10px'})
+    ]),
+    
+    dcc.Tabs(className='tabs', value='tab-dashboard', children=[
         dcc.Tab(label='Transactions', value='tab-transactions', children=[
             html.Div(className='card', children=[
                 html.H3('All Transactions'),
@@ -135,60 +168,21 @@ app.layout = html.Div([
 
 
 # -----------------------------
-# Callbacks: Upload handling
+# Callbacks: Scanner stats
 # -----------------------------
 @app.callback(
-    Output('upload-status', 'children'),
-    Input('upload-data', 'contents'),
-    State('upload-data', 'filename'),
-    prevent_initial_call=True
+    Output('scanner-stats', 'children'),
+    Input('refresh-interval', 'n_intervals')
 )
-def handle_upload(list_of_contents, list_of_names):
-    if not list_of_contents:
-        return ''
-    messages = []
-    
-    # Check if LLM is available (required for this app)
-    llm_available = is_llm_available()
-    
-    if not llm_available:
-        return html.Div([
-            html.P("⚠️ LLM dependencies not available!", style={'color': 'orange', 'fontWeight': 'bold'}),
-            html.P("This app requires llama-cpp-python to be installed."),
-            html.P("Install with: CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python"),
-            html.P("Or run: ./setup.sh")
-        ], style={'padding': '20px', 'backgroundColor': '#fff3cd', 'borderRadius': '8px'})
-    
-    for content_str, name in zip(list_of_contents, list_of_names):
-        try:
-            header, b64 = content_str.split(',')
-            content = base64.b64decode(b64)
-            # unique filename
-            safe_name = unique_filename(name, content)
-            dest = UPLOAD_DIR / safe_name
-            with open(dest, 'wb') as f:
-                f.write(content)
-            
-            ext = os.path.splitext(name)[1].lower()
-            
-            # Always use AI agent workflow
-            success, message, num_records = agent_workflow.process_file(
-                safe_name, content, ext
-            )
-            
-            if success:
-                ai_indicator = " 🤖" if llm_available else " 🔍"
-                messages.append(f"✓ {name}: {num_records} records processed{ai_indicator}")
-            else:
-                messages.append(f"✗ {name}: {message}")
-                
-        except Exception as e:
-            messages.append(f"✗ Error processing {name}: {str(e)}")
-            import traceback
-            print(f"Full error for {name}:")
-            traceback.print_exc()
-    
-    return html.Ul([html.Li(m) for m in messages])
+def update_scanner_stats(_):
+    stats = file_scanner.get_stats()
+    return html.Div([
+        html.Span(f"📊 Total files processed: {stats['total_processed']}", 
+                 style={'fontSize': '14px', 'fontWeight': 'bold', 'color': '#059669'}),
+        html.Br(),
+        html.Span("💡 Tip: Add new files to test_files/ and restart the app", 
+                 style={'fontSize': '12px', 'color': '#888', 'fontStyle': 'italic'})
+    ])
 
 
 
