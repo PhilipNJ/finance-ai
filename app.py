@@ -2,16 +2,17 @@
 
 An offline Dash application for managing personal finances by uploading and parsing
 bank statements (CSV/PDF), categorizing transactions, and visualizing spending patterns.
+
+Now features an intelligent multi-agent workflow for enhanced data extraction and organization.
 """
 import base64
 import datetime as dt
 import hashlib
 import io
 import os
-import re
-import sqlite3
 from pathlib import Path
 from typing import List
+import re
 
 import dash
 from dash import Dash, dcc, html, Input, Output, State, dash_table
@@ -21,16 +22,24 @@ import plotly.express as px
 from finance_db import init_db, insert_document, insert_transactions, read_transactions_df, get_mem_labels, upsert_mem_label, get_conn
 from parsers import parse_csv, parse_pdf_to_rows, categorize
 from utils import unique_filename
+from agents import AgentWorkflow
+from llm_handler import is_llm_available
 
 # Project paths & ensure upload dir exists
 ROOT = Path(__file__).parent
 DATA_DIR = ROOT / 'data'
 UPLOAD_DIR = DATA_DIR / 'uploads'
+TEMP_DIR = DATA_DIR / 'temp'
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Initialize DB
 init_db()
+
+# Initialize Agent Workflow
+USE_AGENT_WORKFLOW = os.environ.get('USE_AGENT_WORKFLOW', 'true').lower() == 'true'
+agent_workflow = AgentWorkflow(TEMP_DIR) if USE_AGENT_WORKFLOW else None
 
 app: Dash = dash.Dash(__name__, suppress_callback_exceptions=True, title="Local Finance Dashboard")
 server = app.server
@@ -93,6 +102,10 @@ def handle_upload(list_of_contents, list_of_names):
     if not list_of_contents:
         return ''
     messages = []
+    
+    # Check if LLM is available for agent workflow
+    llm_available = is_llm_available()
+    
     for content_str, name in zip(list_of_contents, list_of_names):
         try:
             header, b64 = content_str.split(',')
@@ -102,29 +115,72 @@ def handle_upload(list_of_contents, list_of_names):
             dest = UPLOAD_DIR / safe_name
             with open(dest, 'wb') as f:
                 f.write(content)
-            doc_id = insert_document(safe_name)
-            # parse
+            
             ext = os.path.splitext(name)[1].lower()
-            if ext == '.csv':
-                df = parse_csv(content)
-            elif ext == '.pdf':
-                df = parse_pdf_to_rows(content)
-            else:
-                # try csv as default
+            
+            # Use agent workflow if enabled and available
+            if USE_AGENT_WORKFLOW and agent_workflow:
                 try:
-                    df = parse_csv(content)
-                except Exception:
-                    df = pd.DataFrame(columns=['date','amount','description'])
-            # categorize
-            mem = get_mem_labels()
-            if not df.empty:
-                df['category'] = [categorize(r['description'], r['amount'], mem) for _, r in df.iterrows()]
-                rows = [(r['date'] or '', float(r['amount'] or 0), r['description'] or '', r['category'] or 'Uncategorized') for _, r in df.iterrows()]
-                insert_transactions(doc_id, rows)
-            messages.append(f"Processed {name} -> {len(df)} rows")
+                    success, message, num_records = agent_workflow.process_file(
+                        safe_name, content, ext
+                    )
+                    
+                    if success:
+                        llm_status = " (with LLM)" if llm_available else " (pattern-based)"
+                        messages.append(f"✓ {name}: {num_records} records processed{llm_status}")
+                    else:
+                        messages.append(f"⚠ {name}: {message}")
+                        
+                except Exception as e:
+                    messages.append(f"⚠ Agent workflow failed for {name}, using fallback: {str(e)}")
+                    # Fallback to original parsing
+                    num_records = _fallback_parse(content, name, ext, safe_name)
+                    messages.append(f"✓ {name}: {num_records} records (fallback method)")
+            else:
+                # Original parsing method
+                num_records = _fallback_parse(content, name, ext, safe_name)
+                messages.append(f"✓ {name}: {num_records} rows (classic method)")
+                
         except Exception as e:
-            messages.append(f"Error processing {name}: {e}")
+            messages.append(f"✗ Error processing {name}: {e}")
+    
     return html.Ul([html.Li(m) for m in messages])
+
+
+def _fallback_parse(content: bytes, name: str, ext: str, safe_name: str) -> int:
+    """Fallback to original parsing method.
+    
+    Args:
+        content: Raw file content.
+        name: Original filename.
+        ext: File extension.
+        safe_name: Sanitized filename.
+        
+    Returns:
+        int: Number of rows processed.
+    """
+    doc_id = insert_document(safe_name)
+    
+    # parse
+    if ext == '.csv':
+        df = parse_csv(content)
+    elif ext == '.pdf':
+        df = parse_pdf_to_rows(content)
+    else:
+        # try csv as default
+        try:
+            df = parse_csv(content)
+        except Exception:
+            df = pd.DataFrame(columns=['date','amount','description'])
+    
+    # categorize
+    mem = get_mem_labels()
+    if not df.empty:
+        df['category'] = [categorize(r['description'], r['amount'], mem) for _, r in df.iterrows()]
+        rows = [(r['date'] or '', float(r['amount'] or 0), r['description'] or '', r['category'] or 'Uncategorized') for _, r in df.iterrows()]
+        insert_transactions(doc_id, rows)
+        return len(df)
+    return 0
 
 
 # -----------------------------
