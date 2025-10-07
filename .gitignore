@@ -60,3 +60,9 @@ models/
 
 # Misc
 *.swp
+
+#mkdocs
+/site
+/site/*
+/.site
+

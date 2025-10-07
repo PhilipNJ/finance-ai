@@ -7,3 +7,9 @@ Pillow==10.4.0
 
 # LLM dependencies for agent workflow
 llama-cpp-python==0.2.90
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.5.3
+pymdown-extensions==10.7
+mkdocs-git-revision-date-localized-plugin==1.2.2

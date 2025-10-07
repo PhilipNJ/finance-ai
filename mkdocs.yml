@@ -1,0 +1,112 @@
+site_name: Finance AI Dashboard
+site_description: AI-Powered Personal Finance Management
+site_author: Philip NJ
+site_url: https://philipnj.github.io/finance-ai
+
+repo_name: PhilipNJ/finance-ai
+repo_url: https://github.com/PhilipNJ/finance-ai
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/robot
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/PhilipNJ/finance-ai
+  
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+
+plugins:
+  - search:
+      lang: en
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started.md
+    - Quick Start: quick-start.md
+    - Configuration: configuration.md
+  - Architecture:
+    - AI-First Philosophy: ai-architecture.md
+    - Multi-Agent System: agent-workflow.md
+    - Data Flow: data-flow.md
+  - User Guide:
+    - Uploading Files: user-guide/uploading.md
+    - Dashboard: user-guide/dashboard.md
+    - Categories: user-guide/categories.md
+  - Technical:
+    - API Reference: api-reference.md
+    - Database Schema: database-schema.md
+    - LLM Integration: llm-integration.md
+  - Troubleshooting:
+    - Common Issues: troubleshooting.md
+    - FAQ: faq.md
+  - Development:
+    - Contributing: contributing.md
+    - Changelog: changelog.md
+    - Roadmap: roadmap.md
