@@ -21,6 +21,8 @@ from .finance_db import (
     get_conn,
     fetch_uncertain_transactions,
     delete_uncertain_transaction,
+    reapply_memory_to_transactions,
+    prune_uncertain_using_mem_labels,
 )
 from .agents import AgentWorkflow
 from .llm_handler import is_llm_available
@@ -359,6 +361,10 @@ def on_save_uncertain(n_clicks, data):
     finally:
         con.close()
 
+    # Auto reapply memory and prune resolved uncertain items
+    reapply_memory_to_transactions()
+    prune_uncertain_using_mem_labels()
+
     # Reload remaining
     df = _load_uncertain_df()
     return df.to_dict('records') if not df.empty else []
@@ -370,7 +376,9 @@ def on_save_uncertain(n_clicks, data):
     prevent_initial_call=True
 )
 def on_reapply_memory(_):
-    # Simply reload from DB; categorization is applied on next ingestion, but user can refresh view
+    # Apply memory over current DB and prune uncertain queue
+    reapply_memory_to_transactions()
+    prune_uncertain_using_mem_labels()
     df = read_transactions_df()
     if df.empty:
         raise dash.exceptions.PreventUpdate

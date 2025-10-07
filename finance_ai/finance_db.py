@@ -230,3 +230,81 @@ def _ensure_column_exists(cur, table: str, column: str, coltype: str):
             cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
     except Exception:
         pass
+
+
+def reapply_memory_to_transactions():
+    """Apply mem_labels to existing uncategorized transactions.
+
+    Updates transactions where category is NULL/empty/'Uncategorized' by matching
+    mem_labels.keyword as a substring of the description (case-insensitive).
+    Also sets subcategory when available.
+    """
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        # Iterate through mem_labels to apply updates; use parameterized LIKE
+        # Fetch with subcategory if present
+        try:
+            cur.execute("PRAGMA table_info(mem_labels)")
+            cols = {r[1] for r in cur.fetchall()}
+            has_sub = 'subcategory' in cols
+        except Exception:
+            has_sub = False
+        if has_sub:
+            cur.execute("SELECT keyword, category, subcategory FROM mem_labels")
+            labels = cur.fetchall()
+        else:
+            cur.execute("SELECT keyword, category, NULL as subcategory FROM mem_labels")
+            labels = cur.fetchall()
+
+        for keyword, category, subcategory in labels:
+            if not keyword:
+                continue
+            kw = f"%{str(keyword).strip().lower()}%"
+            if subcategory is not None:
+                cur.execute(
+                    """
+                    UPDATE transactions
+                    SET category = ?, subcategory = ?
+                    WHERE (category IS NULL OR category = '' OR category = 'Uncategorized')
+                      AND lower(description) LIKE ?
+                    """,
+                    (category, subcategory, kw),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE transactions
+                    SET category = ?
+                    WHERE (category IS NULL OR category = '' OR category = 'Uncategorized')
+                      AND lower(description) LIKE ?
+                    """,
+                    (category, kw),
+                )
+        con.commit()
+    finally:
+        con.close()
+
+
+def prune_uncertain_using_mem_labels():
+    """Remove uncertain items that are now covered by mem_labels.
+
+    Deletes rows in uncertain_transactions where any mem_labels.keyword is a substring
+    of the uncertain description (case-insensitive).
+    """
+    con = get_conn()
+    try:
+        cur = con.cursor()
+        # Use EXISTS + instr for efficient match
+        cur.execute(
+            """
+            DELETE FROM uncertain_transactions AS u
+            WHERE EXISTS (
+                SELECT 1 FROM mem_labels AS m
+                WHERE instr(lower(u.description), lower(m.keyword)) > 0
+            )
+            """
+        )
+        con.commit()
+    finally:
+        con.close()
