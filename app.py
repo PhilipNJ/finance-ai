@@ -39,17 +39,12 @@ print("\n" + "="*70)
 print("🤖 Finance AI Dashboard - Starting Up")
 print("="*70)
 
+# Soft-check LLM availability; continue without it for baseline processing
 if not is_llm_available():
-    print("\n❌ CRITICAL ERROR: LLM dependencies not available!")
-    print("\nThis app requires llama-cpp-python to function.")
-    print("\nInstall with:")
-    print("  macOS (Apple Silicon): CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python")
-    print("  Other systems: pip install llama-cpp-python")
-    print("\nOr run: ./setup.sh")
-    print("\n" + "="*70 + "\n")
-    raise SystemExit("LLM dependencies required. Please install llama-cpp-python.")
-
-print("✅ LLM dependencies available")
+    print("\n⚠️ LLM dependencies not available (llama-cpp not installed).")
+    print("Proceeding with baseline extraction only. AI enhancements will be limited.")
+else:
+    print("✅ LLM dependencies available")
 
 # Initialize Agent Workflow (AI-first approach)
 USE_AGENT_WORKFLOW = True  # AI workflow is always enabled
@@ -76,6 +71,13 @@ print(f"📊 Previously processed files: {stats['total_processed']}")
 # Scan for new files on startup
 print("🔎 Scanning for new files...")
 new_files = file_scanner.scan_for_new_files()
+
+# Prioritize fast-to-process file types first (CSV -> PDF -> TXT)
+def _priority(ext: str) -> int:
+    order = {'.csv': 0, '.pdf': 1, '.txt': 2, '.text': 2}
+    return order.get(ext.lower(), 99)
+
+new_files.sort(key=lambda t: _priority(Path(t[0]).suffix))
 
 if new_files:
     print(f"📄 Found {len(new_files)} new file(s) to process")
@@ -131,7 +133,7 @@ app.layout = html.Div([
     ]),
     
     # Info card about auto-processing
-    html.Div(className='card', style={'marginBottom': '20px', 'backgroundColor': '#f0f9ff'}, children=[
+    html.Div(className='card', children=[
         html.H3('📁 Auto-Processing Active', style={'margin': '10px 0', 'color': '#0369a1'}),
         html.P(f'Monitoring: {WATCH_DIR}', style={'fontSize': '14px', 'margin': '5px 0', 'fontFamily': 'monospace'}),
         html.P('Drop new files into this directory and restart the app to process them automatically.', 
@@ -165,6 +167,11 @@ app.layout = html.Div([
     ]),
     dcc.Interval(id='refresh-interval', interval=5*1000, n_intervals=0)  # soft refresh
 ], style={'padding':'16px'})
+
+
+# Entry point for CLI / Poetry script
+def main():
+    app.run_server(debug=True)
 
 
 # -----------------------------
@@ -309,4 +316,4 @@ def on_table_edit(ts, data, data_prev):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    main()

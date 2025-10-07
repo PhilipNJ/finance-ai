@@ -156,17 +156,22 @@ graph LR```bash
 
     style D fill:#fff3e0
 
-```#### 4. Run the App
+#### 4. Run the App
+
+Using Poetry:
 
 ```bash
+poetry install
+poetry run python app.py
+```
 
-1. **Agent 1** reads and understands your document using AIpython app.py
+Or, after install:
 
-2. **Agent 2** intelligently organizes the data by type```
+```bash
+poetry run finance-ai
+```
 
-3. **Agent 3** creates database tables and stores everything
-
-4. **Dashboard** displays beautiful interactive visualizationsOpen your browser to: **http://127.0.0.1:8050**
+Open your browser to: **http://127.0.0.1:8050**
 
 
 

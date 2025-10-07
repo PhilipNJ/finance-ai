@@ -38,6 +38,7 @@ data/finance.db
 data/uploads/
 *.sqlite3
 *.db
+data/processed_files.json
 
 # Tests and coverage
 .pytest_cache/
@@ -67,3 +68,8 @@ models/
 /.site
 
 test_files/
+
+# Poetry
+poetry.lock
+
+/data

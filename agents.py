@@ -270,7 +270,7 @@ Return your analysis as JSON with these fields: document_type, date_range, accou
                 context=text
             )
             
-            llm_response = llm.generate_json(prompt, max_tokens=1024, temperature=0.1)
+            llm_response = llm.generate_json(prompt, max_tokens=512, temperature=0.1, agent_type="extraction")
             
             return {
                 **raw_data,
@@ -510,7 +510,7 @@ Return as JSON array: [{"date": "...", "amount": 0.0, "description": "..."}]""",
                 context=text
             )
             
-            llm_response = llm.generate_json(prompt, max_tokens=2048, temperature=0.1)
+            llm_response = llm.generate_json(prompt, max_tokens=512, temperature=0.1, agent_type="extraction")
             
             if isinstance(llm_response, list):
                 transactions = llm_response
