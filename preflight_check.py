@@ -1,55 +1,38 @@
 #!/usr/bin/env python3
 """
 Pre-flight check for Finance AI Dashboard.
-Verifies that all AI dependencies are available before starting the app.
+Verifies that core dependencies and directories are available before starting the app.
+
+Optional: checks connectivity to a local Ollama server for LLM features.
 """
 import sys
 from pathlib import Path
 
 
-def check_llm_library():
-    """Check if llama-cpp-python is installed."""
+def check_ollama_connectivity():
+    """Check if a local Ollama server is reachable (optional)."""
     try:
-        from llama_cpp import Llama
-        print("✅ llama-cpp-python installed")
-        return True
-    except ImportError:
-        print("\n" + "="*70)
-        print("❌ ERROR: llama-cpp-python is NOT installed")
-        print("="*70)
-        print("\nThis AI-powered dashboard requires LLM capabilities.")
-        print("\nInstallation:")
-        print("\n  macOS (Apple Silicon):")
-        print("    CMAKE_ARGS=\"-DLLAMA_METAL=on\" pip install llama-cpp-python")
-        print("\n  Other systems:")
-        print("    pip install llama-cpp-python")
-        print("\n  Or run the setup script:")
-        print("    ./setup.sh")
-        print("\n" + "="*70 + "\n")
+        import requests  # type: ignore
+        resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if resp.ok:
+            print("✅ Ollama reachable at http://localhost:11434 (optional)")
+            return True
+        print("⚠️  Ollama not reachable (optional)")
+        return False
+    except Exception:
+        print("⚠️  Ollama not reachable (optional)")
         return False
 
 
 def check_model_file():
-    """Check if the AI model file exists."""
+    """Deprecated: legacy local GGUF model (not required)."""
     model_path = Path("mistral-7b-instruct-v0.1.Q5_0.gguf")
-    
     if model_path.exists():
         size_mb = model_path.stat().st_size / (1024 * 1024)
-        print(f"✅ AI model found: {model_path.name} ({size_mb:.1f} MB)")
-        return True
+        print(f"ℹ️  Legacy GGUF model present: {model_path.name} ({size_mb:.1f} MB) — not required")
     else:
-        print("\n" + "="*70)
-        print(f"❌ ERROR: AI model file not found")
-        print("="*70)
-        print(f"\nExpected location: {model_path.absolute()}")
-        print("\nDownload the Mistral-7B model (~4.2GB):")
-        print("\n  Using wget:")
-        print("    wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q5_0.gguf")
-        print("\n  Using curl:")
-        print("    curl -L -o mistral-7b-instruct-v0.1.Q5_0.gguf \\")
-        print("      https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q5_0.gguf")
-        print("\n" + "="*70 + "\n")
-        return False
+        print("ℹ️  No local GGUF model found (not required)")
+    return True
 
 
 def check_other_dependencies():
@@ -58,7 +41,8 @@ def check_other_dependencies():
         'dash': 'Dash framework',
         'pandas': 'Data processing',
         'plotly': 'Visualization',
-        'pdfplumber': 'PDF parsing'
+    'pdfplumber': 'PDF parsing',
+    'requests': 'HTTP (Ollama optional)'
     }
     
     all_ok = True
@@ -94,10 +78,10 @@ def main():
     print("🤖 Finance AI Dashboard - Pre-Flight Check")
     print("="*70 + "\n")
     
-    print("Checking AI Dependencies...")
+    print("Checking Optional LLM Connectivity...")
     print("-" * 70)
-    llm_ok = check_llm_library()
-    model_ok = check_model_file()
+    ollama_ok = check_ollama_connectivity()
+    legacy_model_ok = check_model_file()
     
     print("\nChecking Other Dependencies...")
     print("-" * 70)
@@ -109,11 +93,11 @@ def main():
     
     print("\n" + "="*70)
     
-    if llm_ok and model_ok and deps_ok and dirs_ok:
+    if deps_ok and dirs_ok:
         print("✅ ALL CHECKS PASSED - Ready to launch!")
         print("="*70)
         print("\nStart the app with:")
-        print("  python app.py")
+        print("  poetry run finance-ai")
         print("\nThen open: http://127.0.0.1:8050")
         print("="*70 + "\n")
         return 0
@@ -121,7 +105,7 @@ def main():
         print("❌ CHECKS FAILED - Please fix the issues above")
         print("="*70)
         print("\nQuick fix:")
-        print("  ./setup.sh")
+        print("  poetry install")
         print("="*70 + "\n")
         return 1
 
