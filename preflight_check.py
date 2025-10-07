@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""DEPRECATED: Use scripts/preflight_check.py"""
+import sys
+
+print(
+    "[DEPRECATED] Run `python scripts/preflight_check.py`.",
+    file=sys.stderr,
+)
+raise SystemExit(1)
+#!/usr/bin/env python3
 """
 Pre-flight check for Finance AI Dashboard.
 Verifies that core dependencies and directories are available before starting the app.

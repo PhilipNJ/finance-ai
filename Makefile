@@ -1,6 +1,6 @@
 PY := python3
 
-.PHONY: install run preflight test
+.PHONY: install run preflight test export-reqs
 
 install:
 	poetry install
@@ -13,3 +13,6 @@ preflight:
 
 test:
 	poetry run $(PY) scripts/test_installation.py
+
+export-reqs:
+	poetry export --format=requirements.txt --output=requirements.txt --without-hashes

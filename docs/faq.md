@@ -368,7 +368,7 @@ Finance AI is designed for **local use**. However, you can:
 **Option 1: Personal Server**
 ```bash
 # Run on your home server
-python app.py --host=0.0.0.0 --port=8050
+python -m finance_ai --host=0.0.0.0 --port=8050
 
 # Access from other devices on your network
 http://your-server-ip:8050
@@ -445,7 +445,7 @@ cp data/finance.db data/backup.db
 rm data/finance.db
 
 # Restart app (creates new database)
-python app.py
+python -m finance_ai
 ```
 
 ---
@@ -457,7 +457,7 @@ python app.py
 **Yes!** Use Python scripting:
 
 ```python
-from agents import AgentWorkflow
+from finance_ai.agents import AgentWorkflow
 
 workflow = AgentWorkflow()
 
@@ -499,7 +499,7 @@ print(spending)
 
 ### Can I customize the dashboard?
 
-**Yes!** Edit `app.py` to:
+**Yes!** Edit `finance_ai/app.py` to:
 
 - Change colors/theme
 - Add new charts
@@ -509,7 +509,7 @@ print(spending)
 **Example: Add a new chart**
 
 ```python
-# In app.py, add to layout
+# In finance_ai/app.py, add to layout
 dcc.Graph(
     id='my-custom-chart',
     figure=px.line(df, x='date', y='balance')

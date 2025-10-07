@@ -92,9 +92,9 @@ Before you begin, ensure you have:
       https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.1-GGUF/resolve/main/mistral-7b-instruct-v0.1.Q5_0.gguf
     ```
 
-=== "From Requirements"
+=== "From Requirements (exported)"
 
-    If you prefer using `requirements.txt`:
+    If you prefer using `requirements.txt`, export it from Poetry first:
 
     ```bash
     # 1. Clone and navigate
@@ -105,7 +105,8 @@ Before you begin, ensure you have:
     python3 -m venv .venv
     source .venv/bin/activate
 
-    # 3. Install from requirements
+    # 3. Export and install requirements
+    make export-reqs
     pip install -r requirements.txt
 
     # 4. Install llama-cpp-python separately with system-specific flags
@@ -121,7 +122,7 @@ Before you begin, ensure you have:
 Run the pre-flight check to verify everything is installed correctly:
 
 ```bash
-python3 preflight_check.py
+poetry run python scripts/preflight_check.py
 ```
 
 Expected output:

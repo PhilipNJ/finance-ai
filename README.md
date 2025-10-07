@@ -13,14 +13,15 @@ Badges: Python 3.10+, MIT
 
 ## Quickstart
 
-1) Install dependencies (Poetry recommended)
+1) Install dependencies (Poetry is the source of truth)
 
 	 - With Poetry:
 		 - Install: `poetry install`
-		 - Run preflight check: `poetry run python preflight_check.py`
+		 - Run preflight check: `poetry run python scripts/preflight_check.py`
 		 - Launch app: `poetry run finance-ai`
 
-	 - With venv + pip:
+	 - With venv + pip (via export):
+		 - Generate requirements.txt: `make export-reqs`
 		 - Create/activate venv, then: `pip install -r requirements.txt`
 		 - Launch app: `python -m finance_ai`
 
@@ -36,7 +37,7 @@ Badges: Python 3.10+, MIT
 
 ## Development
 
-- Make targets: `make install`, `make run`, `make preflight`, `make test`
+- Make targets: `make install`, `make run`, `make preflight`, `make test`, `make export-reqs`
 - Module entry point: `python -m finance_ai` or `poetry run finance-ai`
 
 ## Notes

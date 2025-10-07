@@ -168,8 +168,26 @@ app.layout = html.Div([
 
 
 # Entry point for CLI / Poetry script
-def main():
-    app.run_server(debug=True)
+def main(host: str | None = None, port: int | None = None, debug: bool | None = None):
+        """Run the Dash server.
+
+        Supports CLI flags when invoked via `python -m finance_ai` or the Poetry console script:
+            --host 0.0.0.0  --port 8050  [--debug|--no-debug]
+        """
+        import argparse
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--host", default="127.0.0.1")
+        parser.add_argument("--port", type=int, default=8050)
+        parser.add_argument("--debug", dest="debug", action="store_true")
+        parser.add_argument("--no-debug", dest="debug", action="store_false")
+        parser.set_defaults(debug=True)
+        args, _ = parser.parse_known_args()
+
+        run_host = host or args.host
+        run_port = port or args.port
+        run_debug = debug if debug is not None else args.debug
+
+        app.run_server(host=run_host, port=run_port, debug=run_debug)
 
 
 # -----------------------------

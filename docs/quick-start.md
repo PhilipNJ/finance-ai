@@ -19,7 +19,7 @@ Get up and running with Finance AI Dashboard in 5 minutes.
     cd finance-ai
     
     # Run the installation script
-    python3 preflight_check.py
+    poetry run python scripts/preflight_check.py
     
     # If successful, the app will start automatically!
     ```
@@ -30,7 +30,7 @@ Get up and running with Finance AI Dashboard in 5 minutes.
     cd finance-ai
     
     # Run the installation script
-    python preflight_check.py
+    poetry run python scripts/preflight_check.py
     
     # If successful, the app will start automatically!
     ```
@@ -48,10 +48,12 @@ source .venv/bin/activate  # macOS/Linux
 
 # 3. Install dependencies
 pip install --upgrade pip
+# If using pip, first export requirements from Poetry in project root:
+#   make export-reqs
 pip install -r requirements.txt
 
 # 4. Start the app
-python app.py
+python -m finance_ai
 ```
 
 ## First Launch
@@ -59,7 +61,7 @@ python app.py
 When you run the app for the first time:
 
 ```bash
-python app.py
+python -m finance_ai
 ```
 
 You'll see:

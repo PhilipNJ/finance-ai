@@ -169,11 +169,11 @@ OSError: [Errno 48] Address already in use
     lsof -ti:8050 | xargs kill -9
     
     # Then restart
-    python app.py
+    python -m finance_ai
     ```
 
 === "Option 2: Use different port"
-    Edit `app.py`:
+    Edit `finance_ai/app.py`:
     ```python
     if __name__ == '__main__':
         app.run_server(debug=True, port=8051)  # Changed from 8050
@@ -194,8 +194,8 @@ OSError: [Errno 48] Address already in use
 
 **Check startup logs:**
 ```
-python app.py
-# Look for: ✓ LLM loaded successfully!
+python -m finance_ai
+# Look for server startup messages
 ```
 
 **If not loaded, see** [LLM model not found](#llm-model-not-found)
@@ -294,10 +294,10 @@ conn = sqlite3.connect('data/finance.db', timeout=20.0)
 **Or:**
 ```bash
 # Close other instances of the app
-pkill -f "python app.py"
+pkill -f "python -m finance_ai"
 
 # Restart
-python app.py
+python -m finance_ai
 ```
 
 ---
@@ -486,7 +486,7 @@ file_hash = get_file_hash(file_path)
 
 **If not running:**
 ```bash
-python app.py
+python -m finance_ai
 ```
 
 #### 2. Try Different URL
@@ -650,15 +650,15 @@ Free up CPU by closing:
     free -h
     
     # Check process memory
-    top -p $(pgrep -f "python app.py")
+    top -p $(pgrep -f "python -m finance_ai")
     ```
 
 #### 2. Restart App Periodically
 
 ```bash
 # If processing many files
-pkill -f "python app.py"
-python app.py
+pkill -f "python -m finance_ai"
+python -m finance_ai
 ```
 
 #### 3. Use Smaller Model
@@ -675,7 +675,7 @@ If your issue isn't listed here:
 
 ```bash
 # Run with verbose output
-python app.py
+python -m finance_ai
 
 # Check for errors in terminal output
 ```
@@ -683,7 +683,7 @@ python app.py
 ### 2. Enable Debug Mode
 
 ```python
-# In app.py
+# In finance_ai/app.py
 if __name__ == '__main__':
     app.run_server(debug=True)  # Enables detailed error messages
 ```
@@ -698,7 +698,7 @@ sqlite3 data/finance.db "PRAGMA integrity_check;"
 ### 4. Test Installation
 
 ```bash
-python test_installation.py
+python scripts/test_installation.py
 ```
 
 ### 5. Community Support
@@ -726,7 +726,7 @@ rm data/finance.db
 rm -rf data/temp/*
 
 # Restart app (will recreate database)
-python app.py
+python -m finance_ai
 ```
 
 ### Restore from Backup
@@ -736,14 +736,14 @@ python app.py
 cp data/finance_backup.db data/finance.db
 
 # Restart app
-python app.py
+python -m finance_ai
 ```
 
 ---
 
 !!! tip "Prevention Tips"
     - Keep backups of your database
-    - Update dependencies regularly: `pip install --upgrade -r requirements.txt`
+    - Update dependencies regularly: `make export-reqs && pip install --upgrade -r requirements.txt`
     - Monitor disk space and memory
     - Test with small files first
 
